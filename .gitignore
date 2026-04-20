@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Android/Gradle
+.gradle/
+local.properties
+**/build/
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
