@@ -19,6 +19,6 @@ This Android app uses Kotlin with Jetpack Compose and integrates native C++ thro
 
 ## Build
 ```bash
-cd /home/runner/work/AI-AGENT/AI-AGENT/android
+cd android
 ./gradlew assembleDebug
 ```
