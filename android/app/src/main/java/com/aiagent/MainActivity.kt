@@ -15,30 +15,39 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 class MainActivity : ComponentActivity() {
+    external fun stringFromJNI(): String
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val nativeMessage = stringFromJNI()
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    AppScaffold()
+                    AppScaffold(nativeMessage)
                 }
             }
+        }
+    }
+
+    companion object {
+        init {
+            System.loadLibrary("aiagent-native")
         }
     }
 }
 
 @Composable
-private fun AppScaffold() {
+private fun AppScaffold(nativeMessage: String) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(text = "AI-AGENT (Android MVP Scaffold)", style = MaterialTheme.typography.headlineSmall)
-        Text(text = "• Project/workspace lifecycle")
-        Text(text = "• Editor/file/terminal integration (planned)")
-        Text(text = "• AI model gateway configuration")
-        Text(text = "• Realtime streams and offline cache (planned)")
+        Text(text = "AI-AGENT (Android Kotlin + C++ + Compose)", style = MaterialTheme.typography.headlineSmall)
+        Text(text = "Native layer says: $nativeMessage")
+        Text(text = "• Jetpack Compose UI enabled")
+        Text(text = "• JNI bridge with CMake enabled")
+        Text(text = "• Ready for feature module expansion")
     }
 }
