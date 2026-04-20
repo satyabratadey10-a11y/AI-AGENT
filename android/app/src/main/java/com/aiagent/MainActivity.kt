@@ -19,7 +19,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val nativeMessage = stringFromJNI()
+        val nativeMessage = if (nativeLoaded) {
+            runCatching { stringFromJNI() }.getOrElse { "Native call unavailable" }
+        } else {
+            "Native library failed to load"
+        }
+
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -30,9 +35,9 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        init {
+        private val nativeLoaded: Boolean = runCatching {
             System.loadLibrary("aiagent-native")
-        }
+        }.isSuccess
     }
 }
 
