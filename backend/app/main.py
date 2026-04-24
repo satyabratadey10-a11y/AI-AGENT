@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Response
+from fastapi.responses import HTMLResponse
 
 from .context_pipeline import ContextPipeline
 from .memory import ConversationMemory
@@ -22,6 +23,7 @@ from .schemas import (
     WorkspaceCreate,
 )
 from .telemetry import TelemetryCollector
+from .ui import get_chat_ui_html
 
 app = FastAPI(title="AI-AGENT Control Plane", version="0.1.0")
 
@@ -33,6 +35,18 @@ router = ModelRouter(registry)
 telemetry = TelemetryCollector()
 memory = ConversationMemory()
 gateway = ModelGateway(router=router, context_pipeline=ContextPipeline(), telemetry=telemetry, registry=registry, memory=memory)
+
+
+@app.get("/", include_in_schema=False)
+def root() -> HTMLResponse:
+    """Redirect browsers to the chat UI."""
+    return HTMLResponse(content='<meta http-equiv="refresh" content="0;url=/ui">', status_code=200)
+
+
+@app.get("/ui", response_class=HTMLResponse, include_in_schema=False)
+def chat_ui() -> HTMLResponse:
+    """Serve the built-in single-page chat interface."""
+    return HTMLResponse(content=get_chat_ui_html())
 
 
 @app.get("/health", response_model=HealthResponse)
