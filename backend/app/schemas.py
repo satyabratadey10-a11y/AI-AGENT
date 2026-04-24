@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 
 def utc_now_iso() -> str:
@@ -43,6 +43,8 @@ class ProviderRegistration(BaseModel):
     provider_id: str
     endpoint: str
     auth_mode: Literal["none", "api_key", "oauth2"] = "api_key"
+    provider_type: Literal["openai", "anthropic", "gemini", "ollama", "huggingface", "openrouter", "custom"] = "openai"
+    api_key: SecretStr | None = None
 
 
 class ModelCapabilities(BaseModel):
@@ -72,6 +74,7 @@ class ChatRequest(BaseModel):
     preferred_model: str | None = None
     project_id: str | None = None
     open_files: list[str] = Field(default_factory=list)
+    session_id: str | None = None  # omit to start a new conversation
 
 
 class TokenUsage(BaseModel):
@@ -85,3 +88,9 @@ class ChatResponse(BaseModel):
     content: str
     usage: TokenUsage
     latency_ms: int
+    session_id: str  # always present so the client can continue the conversation
+
+
+class ConversationHistory(BaseModel):
+    session_id: str
+    messages: list[ChatMessage]

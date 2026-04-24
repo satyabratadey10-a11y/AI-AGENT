@@ -32,5 +32,8 @@ class ModelRegistry:
     def get_model(self, model_id: str) -> ModelRegistration | None:
         return self._state.models.get(model_id)
 
+    def get_provider(self, provider_id: str) -> ProviderRegistration | None:
+        return self._state.providers.get(provider_id)
+
     def has_models(self) -> bool:
         return bool(self._state.models)

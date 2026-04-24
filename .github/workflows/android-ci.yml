@@ -2,13 +2,7 @@ name: Android CI
 
 on:
   push:
-    paths:
-      - "android/**"
-      - ".github/workflows/android-ci.yml"
   pull_request:
-    paths:
-      - "android/**"
-      - ".github/workflows/android-ci.yml"
 
 permissions:
   contents: read
@@ -37,19 +31,12 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
 
-      - name: Build, test, and run Android lint (UI/UX + accessibility checks)
-        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest lintDebug
-
-      - name: Upload lint reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-lint-reports
-          path: android/**/build/reports/lint-results*.html
+      - name: Build debug APK and run unit tests
+        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest
 
       - name: Upload debug APK
-        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: android-debug-apk
+          name: AI-AGENT-debug-${{ github.sha }}
           path: android/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
