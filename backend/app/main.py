@@ -29,7 +29,7 @@ workspaces: dict[str, Workspace] = {}
 registry = ModelRegistry()
 router = ModelRouter(registry)
 telemetry = TelemetryCollector()
-gateway = ModelGateway(router=router, context_pipeline=ContextPipeline(), telemetry=telemetry)
+gateway = ModelGateway(router=router, context_pipeline=ContextPipeline(), telemetry=telemetry, registry=registry)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -82,8 +82,8 @@ def list_models() -> list[ModelRegistration]:
 
 
 @app.post("/v1/chat/completions", response_model=ChatResponse)
-def chat_completions(payload: ChatRequest) -> ChatResponse:
+async def chat_completions(payload: ChatRequest) -> ChatResponse:
     try:
-        return gateway.complete_chat(payload)
+        return await gateway.complete_chat(payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

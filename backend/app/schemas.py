@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 
 def utc_now_iso() -> str:
@@ -43,6 +43,8 @@ class ProviderRegistration(BaseModel):
     provider_id: str
     endpoint: str
     auth_mode: Literal["none", "api_key", "oauth2"] = "api_key"
+    provider_type: Literal["openai", "anthropic", "gemini", "ollama", "huggingface", "openrouter", "custom"] = "openai"
+    api_key: SecretStr | None = None
 
 
 class ModelCapabilities(BaseModel):

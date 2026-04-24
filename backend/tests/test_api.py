@@ -1,6 +1,9 @@
+from unittest.mock import AsyncMock, patch
+
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.schemas import ChatResponse, TokenUsage
 
 
 client = TestClient(app)
@@ -45,17 +48,24 @@ def test_project_workspace_model_chat_flow() -> None:
     )
     assert model_res.status_code == 200
 
-    chat_res = client.post(
-        "/v1/chat/completions",
-        json={
-            "messages": [{"role": "user", "content": "Generate hello world"}],
-            "intent": "generate",
-            "preferred_model": "custom-code-1",
-            "project_id": project_id,
-            "open_files": ["main.py"],
-        },
+    mock_response = ChatResponse(
+        model="custom-code-1",
+        content="print('Hello, world!')",
+        usage=TokenUsage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
+        latency_ms=50,
     )
+    with patch("app.main.gateway.complete_chat", new_callable=AsyncMock, return_value=mock_response):
+        chat_res = client.post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "Generate hello world"}],
+                "intent": "generate",
+                "preferred_model": "custom-code-1",
+                "project_id": project_id,
+                "open_files": ["main.py"],
+            },
+        )
     assert chat_res.status_code == 200
     chat_body = chat_res.json()
     assert chat_body["model"] == "custom-code-1"
-    assert "scaffold response" in chat_body["content"]
+    assert "Hello" in chat_body["content"]
