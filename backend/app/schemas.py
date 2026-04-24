@@ -74,6 +74,7 @@ class ChatRequest(BaseModel):
     preferred_model: str | None = None
     project_id: str | None = None
     open_files: list[str] = Field(default_factory=list)
+    session_id: str | None = None  # omit to start a new conversation
 
 
 class TokenUsage(BaseModel):
@@ -87,3 +88,9 @@ class ChatResponse(BaseModel):
     content: str
     usage: TokenUsage
     latency_ms: int
+    session_id: str  # always present so the client can continue the conversation
+
+
+class ConversationHistory(BaseModel):
+    session_id: str
+    messages: list[ChatMessage]

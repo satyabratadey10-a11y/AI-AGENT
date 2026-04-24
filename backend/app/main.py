@@ -2,15 +2,17 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 
 from .context_pipeline import ContextPipeline
+from .memory import ConversationMemory
 from .model_gateway import ModelGateway
 from .model_registry import ModelRegistry
 from .routing import ModelRouter
 from .schemas import (
     ChatRequest,
     ChatResponse,
+    ConversationHistory,
     HealthResponse,
     ModelRegistration,
     Project,
@@ -29,7 +31,8 @@ workspaces: dict[str, Workspace] = {}
 registry = ModelRegistry()
 router = ModelRouter(registry)
 telemetry = TelemetryCollector()
-gateway = ModelGateway(router=router, context_pipeline=ContextPipeline(), telemetry=telemetry, registry=registry)
+memory = ConversationMemory()
+gateway = ModelGateway(router=router, context_pipeline=ContextPipeline(), telemetry=telemetry, registry=registry, memory=memory)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -87,3 +90,31 @@ async def chat_completions(payload: ChatRequest) -> ChatResponse:
         return await gateway.complete_chat(payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# Conversation (memory) management
+# ---------------------------------------------------------------------------
+
+@app.post("/v1/conversations", response_model=ConversationHistory)
+def create_conversation() -> ConversationHistory:
+    """Create a new, empty conversation session and return its ID."""
+    session_id = str(uuid4())
+    return ConversationHistory(session_id=session_id, messages=[])
+
+
+@app.get("/v1/conversations/{session_id}", response_model=ConversationHistory)
+def get_conversation(session_id: str) -> ConversationHistory:
+    """Return the full message history for a conversation."""
+    return ConversationHistory(
+        session_id=session_id,
+        messages=memory.get_history(session_id),
+    )
+
+
+@app.delete("/v1/conversations/{session_id}")
+def delete_conversation(session_id: str) -> Response:
+    """Clear all history for a conversation session."""
+    if not memory.clear(session_id):
+        raise HTTPException(status_code=404, detail="conversation not found")
+    return Response(status_code=204)

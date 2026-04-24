@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import time
+from uuid import uuid4
 
 import httpx
 
 from .context_pipeline import ContextPipeline
+from .memory import ConversationMemory
 from .model_registry import ModelRegistry
 from .providers import ProviderAdapter, build_adapter
 from .redaction import redact_secrets
 from .routing import ModelRouter
-from .schemas import ChatRequest, ChatResponse, TokenUsage
+from .schemas import ChatMessage, ChatRequest, ChatResponse, TokenUsage
 from .telemetry import TelemetryCollector
 
 _MAX_RETRIES = 2
@@ -24,11 +26,13 @@ class ModelGateway:
         context_pipeline: ContextPipeline,
         telemetry: TelemetryCollector,
         registry: ModelRegistry,
+        memory: ConversationMemory,
     ) -> None:
         self.router = router
         self.context_pipeline = context_pipeline
         self.telemetry = telemetry
         self.registry = registry
+        self.memory = memory
         self._adapters: dict[str, ProviderAdapter] = {}
 
     def _get_adapter(self, provider_id: str) -> ProviderAdapter:
@@ -67,7 +71,16 @@ class ModelGateway:
     async def complete_chat(self, request: ChatRequest) -> ChatResponse:
         start = time.perf_counter()
 
-        prompt = self.context_pipeline.build_prompt(request)
+        # Resolve or create the session.
+        session_id = request.session_id or str(uuid4())
+
+        # Prepend stored history so the model sees the full conversation.
+        history = self.memory.get_history(session_id)
+        messages_with_history = history + request.messages
+
+        # Build prompt for token-counting / telemetry (uses the full message list).
+        enriched = request.model_copy(update={"messages": messages_with_history})
+        prompt = self.context_pipeline.build_prompt(enriched)
         prompt = redact_secrets(prompt)
 
         candidates = self.router.choose_with_fallbacks(request)
@@ -79,7 +92,7 @@ class ModelGateway:
         for model in candidates:
             try:
                 adapter = self._get_adapter(model.provider_id)
-                answer = await self._call_with_retry(adapter, request, model.model_id)
+                answer = await self._call_with_retry(adapter, enriched, model.model_id)
                 selected_model_id = model.model_id
                 break
             except (httpx.HTTPError, ValueError, KeyError, IndexError) as exc:
@@ -88,9 +101,18 @@ class ModelGateway:
                 continue
 
         if answer is None:
+            attempted = len(candidates)
+            failed_ids = ", ".join(m.model_id for m in candidates)
             raise ValueError(
-                f"All provider adapters failed. Last error: {last_exc}"
+                f"All {attempted} provider adapter(s) failed (tried: {failed_ids}). "
+                f"Last error: {last_exc}"
             ) from last_exc
+
+        # Persist this turn: new user messages + assistant reply.
+        turn: list[ChatMessage] = request.messages + [
+            ChatMessage(role="assistant", content=answer)
+        ]
+        self.memory.append_turn(session_id, turn)
 
         latency_ms = int((time.perf_counter() - start) * 1000)
         usage = TokenUsage(
@@ -105,6 +127,7 @@ class ModelGateway:
                 "model_id": selected_model_id,
                 "intent": request.intent,
                 "latency_ms": latency_ms,
+                "session_id": session_id,
             },
         )
 
@@ -113,4 +136,5 @@ class ModelGateway:
             content=answer,
             usage=usage,
             latency_ms=latency_ms,
+            session_id=session_id,
         )

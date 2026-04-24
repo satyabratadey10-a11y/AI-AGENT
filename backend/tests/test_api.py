@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import app, memory
 from app.schemas import ChatResponse, TokenUsage
 
 
@@ -53,6 +53,7 @@ def test_project_workspace_model_chat_flow() -> None:
         content="print('Hello, world!')",
         usage=TokenUsage(prompt_tokens=10, completion_tokens=20, total_tokens=30),
         latency_ms=50,
+        session_id="test-session-id",
     )
     with patch("app.main.gateway.complete_chat", new_callable=AsyncMock, return_value=mock_response):
         chat_res = client.post(
@@ -69,3 +70,33 @@ def test_project_workspace_model_chat_flow() -> None:
     chat_body = chat_res.json()
     assert chat_body["model"] == "custom-code-1"
     assert "Hello" in chat_body["content"]
+    assert chat_body["session_id"] == "test-session-id"
+
+
+def test_conversation_create_get_delete() -> None:
+    # Create
+    res = client.post("/v1/conversations")
+    assert res.status_code == 200
+    body = res.json()
+    session_id = body["session_id"]
+    assert session_id
+    assert body["messages"] == []
+
+    # GET returns empty history (no chats yet in this test)
+    get_res = client.get(f"/v1/conversations/{session_id}")
+    assert get_res.status_code == 200
+    assert get_res.json()["session_id"] == session_id
+
+    # Seed memory directly to verify GET returns it
+    from app.schemas import ChatMessage as CM
+    memory.append_turn(session_id, [CM(role="user", content="test")])
+    get_res2 = client.get(f"/v1/conversations/{session_id}")
+    assert len(get_res2.json()["messages"]) == 1
+
+    # DELETE clears the session
+    del_res = client.delete(f"/v1/conversations/{session_id}")
+    assert del_res.status_code == 204
+
+    # Second DELETE → 404
+    del_res2 = client.delete(f"/v1/conversations/{session_id}")
+    assert del_res2.status_code == 404
